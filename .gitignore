@@ -4,4 +4,5 @@ dist-single/
 .tmp/
 *.local
 我的课表.html
+教学管理系统*
 .DS_Store

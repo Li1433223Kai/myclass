@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Course } from '../types'
-import { store, exportData, importData, replaceJxfwCourses, resetSectionTimes, updateSettings } from '../store'
+import { store, exportData, importData, replaceJxfwCourses, resetSectionTimes, updateSettings, clearCourses } from '../store'
 import { parseJxfwHtml, type ParsedResult } from '../lib/importer'
 import { THEME_COLORS, COURSE_COLORS } from '../lib/seed'
 import { formatWeeks, weekOf } from '../lib/weeks'
@@ -44,6 +44,13 @@ function colorOf(c: Course): string {
 }
 function editCourse(c: Course) {
   emit('edit-course', c)
+}
+
+function clearAll() {
+  if (confirm(`确定清空全部 ${store.data.courses.length} 门课程吗？（包括自定义事项，无法恢复；建议先导出备份）`)) {
+    clearCourses()
+    emit('toast', '已清空，可导入或手动添加新课表')
+  }
 }
 
 /* ---------- 课表导入 ---------- */
@@ -189,7 +196,10 @@ function onBackupFile(e: Event) {
     <section class="card sec">
       <div class="sec-title">
         课程管理
-        <button class="mini" @click="editCourse({ id: '', name: '', color: 0, type: 'course', slots: [] } as Course)">＋ 添加</button>
+        <span class="title-btns">
+          <button class="mini danger" @click="clearAll">清空</button>
+          <button class="mini" @click="editCourse({ id: '', name: '', color: 0, type: 'course', slots: [] } as Course)">＋ 添加</button>
+        </span>
       </div>
       <div v-for="c in store.data.courses" :key="c.id" class="crow" @click="editCourse(c)">
         <span class="dot" :style="{ background: colorOf(c) }"></span>
@@ -275,6 +285,14 @@ function onBackupFile(e: Event) {
   border-radius: 8px;
   padding: 5px 10px;
   font-weight: 600;
+}
+.mini.danger {
+  background: #feecec;
+  color: var(--danger);
+}
+.title-btns {
+  display: flex;
+  gap: 6px;
 }
 .row {
   display: flex;

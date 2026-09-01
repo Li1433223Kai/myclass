@@ -75,6 +75,11 @@ export function deleteCourse(id: string) {
   if (i >= 0) store.data.courses.splice(i, 1)
 }
 
+/** 清空全部课程（给别人用自己的课表时先清空） */
+export function clearCourses() {
+  store.data.courses = []
+}
+
 /** 导入教务课表：替换教务课程，保留自定义事项（班会等） */
 export function replaceJxfwCourses(courses: Course[]) {
   store.data.courses = [...store.data.courses.filter(c => c.type === 'custom'), ...courses]
