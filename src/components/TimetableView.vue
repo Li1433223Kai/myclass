@@ -15,6 +15,9 @@ const emit = defineEmits<{
 const ROW_H = 46
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 
+/** week=按周查看（只显示当周的课）；all=整学期总览（所有课彩色） */
+const mode = ref<'week' | 'all'>('week')
+
 const settings = computed(() => store.data.settings)
 const currentWeek = computed(() => weekOf(settings.value.semesterStart, clock.now))
 const week = ref(Math.max(currentWeek.value, 1))
@@ -47,10 +50,10 @@ const weekDates = computed(() => {
 
 interface Entry {
   course: Course
-  active: boolean
   day: number
   startSection: number
   endSection: number
+  weeks: number[]
   location: string
 }
 
@@ -58,14 +61,16 @@ const cellEntries = computed(() => {
   const map = new Map<string, Entry[]>()
   for (const course of store.data.courses) {
     for (const slot of course.slots) {
+      // 本周模式：只保留当前查看周要上的课；总览模式：全部显示
+      if (mode.value === 'week' && !slot.weeks.includes(week.value)) continue
       const key = `${slot.day}-${slot.startSection}`
       const arr = map.get(key) || []
       arr.push({
         course,
-        active: slot.weeks.includes(week.value),
         day: slot.day,
         startSection: slot.startSection,
         endSection: slot.endSection,
+        weeks: slot.weeks,
         location: slot.location
       })
       map.set(key, arr)
@@ -83,14 +88,20 @@ function colorOf(c: Course): string {
 }
 
 function blockTitle(e: Entry): string {
-  return `${e.course.name}｜${formatWeeks(e.course.slots.find(s => s.startSection === e.startSection && s.day === e.day)?.weeks || [])}｜${e.location || '地点待定'}`
+  const w = formatWeeks(e.weeks)
+  return `${e.course.name}｜${w}周｜${e.location || '地点待定'}`
 }
 </script>
 
 <template>
   <div class="page">
     <header class="head">
-      <div class="head-left">
+      <div class="seg">
+        <button :class="{ on: mode === 'week' }" @click="mode = 'week'">本周</button>
+        <button :class="{ on: mode === 'all' }" @click="mode = 'all'">总览</button>
+      </div>
+
+      <div v-if="mode === 'week'" class="head-left">
         <button class="nav" @click="go(-1)">‹</button>
         <div class="week-label" @click="backToThisWeek">
           <div class="week-main">第 {{ week }} 周</div>
@@ -100,6 +111,12 @@ function blockTitle(e: Entry): string {
           </div>
         </div>
         <button class="nav" @click="go(1)">›</button>
+      </div>
+      <div v-else class="head-left">
+        <div class="week-label">
+          <div class="week-main">总课表</div>
+          <div class="week-range">整学期全部课程 · 点色块看周次</div>
+        </div>
       </div>
       <div v-if="debugFixed" class="dbg">调试时间</div>
     </header>
@@ -112,10 +129,12 @@ function blockTitle(e: Entry): string {
           v-for="(d, i) in days"
           :key="d"
           class="hcell"
-          :class="{ today: isThisWeek && dayIndexMon1(clock.now) === d }"
+          :class="{ today: mode === 'week' && isThisWeek && dayIndexMon1(clock.now) === d }"
         >
           <div class="hname">{{ WEEKDAYS[d - 1] }}</div>
-          <div class="hdate">{{ weekDates[i] ? fmtMD(weekDates[i]) : '' }}</div>
+          <div class="hdate">
+            {{ mode === 'week' && weekDates[i] ? fmtMD(weekDates[i]) : '' }}
+          </div>
         </div>
 
         <!-- 主体 -->
@@ -135,16 +154,13 @@ function blockTitle(e: Entry): string {
                 v-for="(e, i) in entriesAt(d, sec)"
                 :key="i"
                 class="block"
-                :class="{ ghost: !e.active }"
-                :style="{
-                  height: (e.endSection - e.startSection + 1) * ROW_H - 6 + 'px',
-                  background: e.active ? colorOf(e.course) : undefined
-                }"
+                :style="{ height: (e.endSection - e.startSection + 1) * ROW_H - 6 + 'px', background: colorOf(e.course) }"
                 :title="blockTitle(e)"
                 @click.stop="emit('edit-course', e.course)"
               >
                 <div class="bname">{{ e.course.name }}</div>
                 <div class="bloc">{{ e.location }}</div>
+                <div v-if="mode === 'all'" class="bweeks">{{ formatWeeks(e.weeks) }}周</div>
               </div>
             </div>
           </div>
@@ -152,7 +168,8 @@ function blockTitle(e: Entry): string {
       </div>
     </div>
 
-    <p class="tip">点空白格可添加课程；灰色块为本周不上、其他周上的课</p>
+    <p v-if="mode === 'week'" class="tip">只显示当前查看周的课，‹ › 翻周；点空白格可添加课程</p>
+    <p v-else class="tip">整学期所有课程总览，色块上的小字是上课周次</p>
   </div>
 </template>
 
@@ -161,7 +178,29 @@ function blockTitle(e: Entry): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin: 4px 2px 12px;
+  flex-wrap: wrap;
+}
+.seg {
+  display: flex;
+  background: #e9ebf2;
+  border-radius: 10px;
+  padding: 3px;
+}
+.seg button {
+  border: none;
+  background: none;
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.seg button.on {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(30, 40, 80, 0.12);
 }
 .head-left {
   display: flex;
@@ -285,12 +324,6 @@ function blockTitle(e: Entry): string {
   z-index: 3;
   line-height: 1.25;
 }
-.block.ghost {
-  background: #edeff5;
-  border: 1px dashed #c9cede;
-  color: #9aa0b2;
-  z-index: 2;
-}
 .bname {
   font-size: 10.5px;
   font-weight: 600;
@@ -303,6 +336,14 @@ function blockTitle(e: Entry): string {
 .bloc {
   font-size: 9.5px;
   opacity: 0.9;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bweeks {
+  font-size: 9px;
+  opacity: 0.85;
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
