@@ -61,8 +61,9 @@ const cellEntries = computed(() => {
   const map = new Map<string, Entry[]>()
   for (const course of store.data.courses) {
     for (const slot of course.slots) {
-      // 本周模式：只保留当前查看周要上的课；总览模式：全部显示
+      // 本周模式：只保留当前查看周要上的课；总览模式：全部显示，但整周实训类（CAD）除外
       if (mode.value === 'week' && !slot.weeks.includes(week.value)) continue
+      if (mode.value === 'all' && course.id === 'c-cad-2w') continue
       const key = `${slot.day}-${slot.startSection}`
       const arr = map.get(key) || []
       arr.push({
@@ -169,7 +170,7 @@ function blockTitle(e: Entry): string {
     </div>
 
     <p v-if="mode === 'week'" class="tip">只显示当前查看周的课，‹ › 翻周；点空白格可添加课程</p>
-    <p v-else class="tip">整学期所有课程总览，色块上的小字是上课周次</p>
+    <p v-else class="tip">整学期所有课程总览（集中实训除外），色块上的小字是上课周次</p>
   </div>
 </template>
 
